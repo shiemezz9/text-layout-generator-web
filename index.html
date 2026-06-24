@@ -2709,11 +2709,32 @@
       place-items: center;
     }
 
+    #startFullscreenRecord,
+    #stopFullscreenRecord {
+      display: none;
+    }
+
+    body.is-web-app #startFullscreenRecord,
+    body.is-web-app #stopFullscreenRecord {
+      display: inline-grid;
+      place-items: center;
+    }
+
     body.is-web-app #checkUpdates,
     body.is-web-app #startManualRecord,
     body.is-web-app #stopManualRecord,
     body.is-web-app #videoAlphaWrap {
       display: none !important;
+    }
+
+    body.is-fullscreen-recording #startFullscreenRecord {
+      opacity: 0.75;
+    }
+
+    body.is-fullscreen-recording #stopFullscreenRecord {
+      background: #ef4444;
+      color: #fff;
+      box-shadow: 0 12px 26px rgba(239, 68, 68, 0.22);
     }
 
     @media (max-width: 1500px) {
@@ -3455,6 +3476,8 @@
           <button id="exportWebm" type="button">自动导出</button>
           <button id="startManualRecord" type="button">开始录制</button>
           <button id="stopManualRecord" type="button" disabled>结束录制</button>
+          <button id="startFullscreenRecord" type="button">全屏录制</button>
+          <button id="stopFullscreenRecord" type="button" disabled>结束全屏</button>
           <p class="transport-note">自动导出会按时间轴播放录制；手动录制会录下实时画布。导出透明通道视频：勾选“Alpha 透明背景视频”，再点击“导出视频”；透明视频将使用 WebM 格式。</p>
           <section class="credits" aria-label="版权说明">
             <p><strong>制作者</strong> @shiemezz</p>
@@ -3568,7 +3591,7 @@
       "imageLineBreaks", "imageRepeatFill", "rainOrder", "rainLineBreaks", "strictInputCount", "strictInputOrder",
       "animateDuration", "enterDuration", "exitDuration", "animateFps", "animateSpeed", "motionDistance", "motionIntensity", "motionPhase", "fireworkCenterX", "fireworkCenterY", "motionStagger", "motionSequence", "motionCurve", "outsidePage", "motionGhost",
       "rainColumnMotionToggle", "rainColumnMotion", "barrageRowMotionToggle", "barrageRowMotion", "motionScrub",
-      "videoFormat", "videoQuality", "videoAlpha", "audioInput", "audioPlay", "audioPause", "audioRestart", "audioScrub", "timecodeInput", "startManualRecord", "stopManualRecord",
+      "videoFormat", "videoQuality", "videoAlpha", "audioInput", "audioPlay", "audioPause", "audioRestart", "audioScrub", "timecodeInput", "startManualRecord", "stopManualRecord", "startFullscreenRecord", "stopFullscreenRecord",
       "undoAction", "redoAction", "canvasZoom", "presetSelect", "savePreset", "loadPreset", "deletePreset", "importPresetFile", "presetFileInput", "checkUpdates"
     ];
 
@@ -3692,6 +3715,8 @@
         ["#pauseMotion", "暂停"],
         ["#resetMotion", "重置"],
         ["#exportWebm", "导出视频"],
+        ["#startFullscreenRecord", "全屏录制"],
+        ["#stopFullscreenRecord", "结束全屏"],
         [".recording-note", "导出视频会按当前画布逐帧播放并录制为所选格式；录制期间请保持页面打开。"],
         [".export-preview-title span", "PNG 已生成，右键或长按图片可保存"],
         [".export-preview-hint", "移动端长按预览图可保存；如果浏览器拦截，使用下方保存按钮。"],
@@ -3745,7 +3770,7 @@
         const exportButton = document.getElementById("exportWebm");
         if (exportButton) exportButton.textContent = "导出 WebM";
         const note = document.querySelector(".transport-note");
-        if (note) note.textContent = "在线版支持 PNG、WebM、动画预览、预设导入导出；MP4 与透明通道视频请使用桌面版。";
+        if (note) note.textContent = "在线版支持 PNG、WebM、动画预览、预设导入导出；全屏录制会调用浏览器屏幕录制权限并导出 WebM。MP4 与透明通道视频请使用桌面版。";
         const title = document.querySelector(".save-state");
         if (title) title.textContent = "在线版";
       }
@@ -3808,6 +3833,11 @@
     let manualRecordChunks = [];
     let manualPreviousOutputScale = 1;
     let manualRecordingAlpha = false;
+    let fullscreenRecording = false;
+    let fullscreenRecorder = null;
+    let fullscreenStream = null;
+    let fullscreenRecordChunks = [];
+    let fullscreenRecordMimeType = "video/webm";
     let uploadedAudioUrl = "";
     let uploadedAudioName = "";
     let historyStack = [];
@@ -3886,7 +3916,7 @@
 
     const savedStateExcludedIds = new Set([
       "imageInput", "localFontInput", "audioInput", "audioPlay", "audioPause", "audioRestart", "audioScrub",
-      "startManualRecord", "stopManualRecord", "motionScrub", "undoAction", "redoAction", "canvasZoom",
+      "startManualRecord", "stopManualRecord", "startFullscreenRecord", "stopFullscreenRecord", "motionScrub", "undoAction", "redoAction", "canvasZoom",
       "presetSelect", "savePreset", "loadPreset", "deletePreset", "importPresetFile", "presetFileInput", "checkUpdates"
     ]);
     const savedRadioGroups = ["axis", "fillDirection", "floatDirection", "imageAlign", "motionEffect", "motionDirection", "rainColumnDirection", "barrageRowDirection", "rotateDirection"];
@@ -5090,6 +5120,85 @@
       controls.stopManualRecord.disabled = true;
       if (manualRecorder && manualRecorder.state !== "inactive") manualRecorder.stop();
       else document.body.classList.remove("is-recording");
+    }
+
+    function resetFullscreenRecordingUi() {
+      fullscreenRecording = false;
+      document.body.classList.remove("is-fullscreen-recording");
+      if (controls.startFullscreenRecord) controls.startFullscreenRecord.disabled = false;
+      if (controls.stopFullscreenRecord) controls.stopFullscreenRecord.disabled = true;
+    }
+
+    async function startFullscreenRecording() {
+      if (fullscreenRecording) return;
+      const status = document.getElementById("downloadStatus");
+      const canRecord = navigator.mediaDevices?.getDisplayMedia && typeof MediaRecorder !== "undefined";
+      if (!canRecord) {
+        showStatus("当前浏览器不支持全屏录制");
+        return;
+      }
+      try {
+        showStatus("请选择当前标签页、窗口或屏幕进行录制", 3600);
+        if (document.fullscreenEnabled && !document.fullscreenElement) {
+          await document.documentElement.requestFullscreen().catch(() => {});
+        }
+        const fps = Math.max(12, num("animateFps"));
+        fullscreenStream = await navigator.mediaDevices.getDisplayMedia({
+          video: {
+            frameRate: { ideal: fps, max: fps }
+          },
+          audio: true
+        });
+        fullscreenRecordChunks = [];
+        fullscreenRecordMimeType = supportedVideoMimeType("webm") || "video/webm";
+        fullscreenRecorder = new MediaRecorder(fullscreenStream, recordingOptions(fullscreenRecordMimeType, fps));
+        fullscreenRecorder.ondataavailable = (event) => {
+          if (event.data && event.data.size) fullscreenRecordChunks.push(event.data);
+        };
+        fullscreenRecorder.onstop = () => {
+          fullscreenStream?.getTracks().forEach((track) => track.stop());
+          fullscreenStream = null;
+          resetFullscreenRecordingUi();
+          if (!fullscreenRecordChunks.length) {
+            if (status) status.textContent = "全屏录制失败";
+            return;
+          }
+          const blob = new Blob(fullscreenRecordChunks, { type: fullscreenRecordMimeType });
+          downloadBlob(blob, `text-layout-fullscreen-${Date.now()}.webm`);
+          if (status) status.textContent = "全屏录制已导出 WebM";
+          window.setTimeout(() => {
+            if (status && status.textContent.includes("全屏录制已导出")) status.textContent = "";
+          }, 2400);
+        };
+        fullscreenStream.getVideoTracks().forEach((track) => {
+          track.addEventListener("ended", stopFullscreenRecording, { once: true });
+        });
+        fullscreenRecording = true;
+        document.body.classList.add("is-fullscreen-recording");
+        if (controls.startFullscreenRecord) controls.startFullscreenRecord.disabled = true;
+        if (controls.stopFullscreenRecord) controls.stopFullscreenRecord.disabled = false;
+        resetAnimation();
+        playAnimation();
+        fullscreenRecorder.start();
+        showStatus("正在全屏录制；点击“结束全屏”后下载 WebM", 3600);
+      } catch (error) {
+        console.error(error);
+        fullscreenStream?.getTracks().forEach((track) => track.stop());
+        fullscreenStream = null;
+        resetFullscreenRecordingUi();
+        showStatus("已取消或无法启动全屏录制");
+      }
+    }
+
+    function stopFullscreenRecording() {
+      if (!fullscreenRecording && (!fullscreenRecorder || fullscreenRecorder.state === "inactive")) return;
+      if (fullscreenRecorder && fullscreenRecorder.state !== "inactive") {
+        fullscreenRecorder.stop();
+      } else {
+        fullscreenStream?.getTracks().forEach((track) => track.stop());
+        fullscreenStream = null;
+        resetFullscreenRecordingUi();
+      }
     }
 
     function selectedMotionEffects() {
@@ -7083,6 +7192,8 @@
       document.getElementById("resetMotion").addEventListener("click", resetAnimation);
       controls.startManualRecord.addEventListener("click", startManualRecording);
       controls.stopManualRecord.addEventListener("click", stopManualRecording);
+      controls.startFullscreenRecord?.addEventListener("click", startFullscreenRecording);
+      controls.stopFullscreenRecord?.addEventListener("click", stopFullscreenRecording);
       controls.audioPlay.addEventListener("click", () => {
         playRecordingAudio(false);
       });
