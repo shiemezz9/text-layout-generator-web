@@ -163,6 +163,12 @@
       display: grid;
     }
 
+    .fullscreen-stage.panels-hidden .fullscreen-floating-panel {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(8px) scale(0.985);
+    }
+
     .fullscreen-stage canvas {
       width: 100vw;
       height: 100vh;
@@ -173,6 +179,45 @@
       background: #000;
       box-shadow: none;
       object-fit: contain;
+    }
+
+    .fullscreen-floating-panel {
+      position: absolute;
+      top: 18px;
+      bottom: 74px;
+      z-index: 2;
+      width: clamp(260px, 21vw, 340px);
+      height: auto;
+      max-height: none;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.92);
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+      overflow: hidden;
+      backdrop-filter: blur(18px);
+      transition-property: opacity, transform;
+      transition-duration: 160ms;
+      transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+    }
+
+    .fullscreen-floating-panel .panel-header {
+      position: sticky;
+      top: 0;
+      background: rgba(255, 255, 255, 0.94);
+    }
+
+    .fullscreen-floating-panel .panel-scroll,
+    .fullscreen-floating-panel .motion-panel {
+      max-height: calc(100vh - 120px);
+      overflow: auto;
+    }
+
+    .fullscreen-panel-left {
+      left: 18px;
+    }
+
+    .fullscreen-panel-right {
+      right: 18px;
     }
 
     .fullscreen-toolbar {
@@ -3311,6 +3356,10 @@
           <input id="strictInputOrder" type="checkbox" checked />
           <span>严格按照输入顺序排列</span>
         </label>
+        <label class="checkbox-row" id="hideGuideAxisWrap">
+          <input id="hideGuideAxis" type="checkbox" />
+          <span>隐藏中轴虚线</span>
+        </label>
         <label id="imageWrap">
           上传图片
           <input class="file-input" id="imageInput" type="file" accept="image/*" />
@@ -3784,6 +3833,7 @@
     <canvas id="fullscreenCanvas" width="1200" height="900"></canvas>
     <div class="fullscreen-toolbar" id="fullscreenToolbar">
       <button id="stageRecordToggle" type="button">录制</button>
+      <button id="stageTogglePanels" type="button">隐藏面板</button>
       <button id="stageHideControls" type="button">隐藏</button>
       <button id="stageExit" type="button">退出</button>
     </div>
@@ -3813,19 +3863,23 @@
     const fullscreenStage = document.getElementById("fullscreenStage");
     const fullscreenCanvas = document.getElementById("fullscreenCanvas");
     const fullscreenCtx = fullscreenCanvas.getContext("2d");
+    const staticPanel = document.querySelector(".app > aside:not(.motion-sidebar)");
+    const motionSidebar = document.querySelector(".motion-sidebar");
+    const staticPanelPlaceholder = document.createComment("static-panel-placeholder");
+    const motionPanelPlaceholder = document.createComment("motion-panel-placeholder");
     const controls = {};
     const ids = [
       "textInput", "mode", "bgColor", "fontColor", "fontFamily", "localFontButton", "localFontInput", "count",
       "minSize", "maxSize", "rotation", "blur", "spread", "padding", "axisBox", "axisBoxChance", "axisLine", "axisLineColor",
       "tearLetterSpacing", "tearLineSpacing", "tearBlurRadius", "depthXRotation", "depthYRotation", "depthZRotation",
       "seed", "canvasW", "canvasH", "imageInput", "transparentExport", "glitch", "glitchAmount", "axisScatter", "rainAxis", "imageThreshold",
-      "imageLineBreaks", "imageRepeatFill", "rainOrder", "rainLineBreaks", "strictInputCount", "strictInputOrder",
+      "imageLineBreaks", "imageRepeatFill", "rainOrder", "rainLineBreaks", "strictInputCount", "strictInputOrder", "hideGuideAxis",
       "animateDuration", "enterDuration", "exitDuration", "animateFps", "animateSpeed", "motionDistance", "motionIntensity", "motionPhase", "fireworkCenterX", "fireworkCenterY", "motionStagger", "motionSequence", "motionCurve", "outsidePage", "motionGhost",
       "rainColumnMotionToggle", "rainColumnMotion", "barrageRowMotionToggle", "barrageRowMotion", "motionScrub",
       "videoFormat", "videoQuality", "videoAlpha", "audioInput", "audioPlay", "audioPause", "audioRestart", "audioScrub", "timecodeInput", "startManualRecord", "stopManualRecord", "startFullscreenRecord", "stopFullscreenRecord",
       "undoAction", "redoAction", "canvasZoom", "presetSelect", "savePreset", "loadPreset", "deletePreset", "importPresetFile", "presetFileInput", "checkUpdates",
       "openOnboarding", "onboarding", "onboardingScrim", "onboardingHighlight", "onboardingCard", "onboardingTitle", "onboardingText", "onboardingCount", "onboardingSkip", "onboardingPrev", "onboardingNext",
-      "fullscreenStage", "fullscreenCanvas", "fullscreenToolbar", "stageRecordToggle", "stageHideControls", "stageShowControls", "stageExit"
+      "fullscreenStage", "fullscreenCanvas", "fullscreenToolbar", "stageRecordToggle", "stageTogglePanels", "stageHideControls", "stageShowControls", "stageExit"
     ];
 
     ids.forEach((id) => {
@@ -3896,6 +3950,7 @@
         ["#rainOrder option[value='shuffle']", "列序随机"],
         ["#strictInputCountWrap span", "严格按照输入字数输出"],
         ["#strictInputOrderWrap span", "严格按照输入顺序排列"],
+        ["#hideGuideAxisWrap span", "隐藏中轴虚线"],
         ["#rainLineBreakWrap span", "按输入换行分配雨列"],
         ["#imageLineBreakWrap span", "应用输入文字换行"],
         ["#imageRepeatWrap span", "重复文字以填满图形"],
@@ -3951,6 +4006,7 @@
         ["#startFullscreenRecord", "画布全屏"],
         ["#stopFullscreenRecord", "退出全屏"],
         ["#stageRecordToggle", "录制"],
+        ["#stageTogglePanels", "隐藏面板"],
         ["#stageHideControls", "隐藏"],
         ["#stageExit", "退出"],
         ["#openOnboarding", "教程"],
@@ -4155,7 +4211,7 @@
 
     const savedStateExcludedIds = new Set([
       "imageInput", "localFontInput", "audioInput", "audioPlay", "audioPause", "audioRestart", "audioScrub",
-      "startManualRecord", "stopManualRecord", "startFullscreenRecord", "stopFullscreenRecord", "fullscreenStage", "fullscreenCanvas", "fullscreenToolbar", "stageRecordToggle", "stageHideControls", "stageShowControls", "stageExit", "motionScrub", "undoAction", "redoAction", "canvasZoom",
+      "startManualRecord", "stopManualRecord", "startFullscreenRecord", "stopFullscreenRecord", "fullscreenStage", "fullscreenCanvas", "fullscreenToolbar", "stageRecordToggle", "stageTogglePanels", "stageHideControls", "stageShowControls", "stageExit", "motionScrub", "undoAction", "redoAction", "canvasZoom",
       "presetSelect", "savePreset", "loadPreset", "deletePreset", "importPresetFile", "presetFileInput", "checkUpdates",
       "openOnboarding", "onboarding", "onboardingScrim", "onboardingHighlight", "onboardingCard", "onboardingTitle", "onboardingText", "onboardingCount", "onboardingSkip", "onboardingPrev", "onboardingNext"
     ]);
@@ -5511,6 +5567,43 @@
       return stream;
     }
 
+    function movePanelsToFullscreenStage() {
+      if (staticPanel && staticPanel.parentNode !== fullscreenStage) {
+        staticPanel.parentNode.insertBefore(staticPanelPlaceholder, staticPanel);
+        staticPanel.classList.add("fullscreen-floating-panel", "fullscreen-panel-left");
+        fullscreenStage.appendChild(staticPanel);
+      }
+      if (motionSidebar && motionSidebar.parentNode !== fullscreenStage) {
+        motionSidebar.parentNode.insertBefore(motionPanelPlaceholder, motionSidebar);
+        motionSidebar.classList.add("fullscreen-floating-panel", "fullscreen-panel-right");
+        fullscreenStage.appendChild(motionSidebar);
+      }
+      fullscreenStage.classList.remove("panels-hidden");
+      if (controls.stageTogglePanels) controls.stageTogglePanels.textContent = "隐藏面板";
+    }
+
+    function restorePanelsFromFullscreenStage() {
+      if (staticPanel && staticPanelPlaceholder.parentNode) {
+        staticPanel.classList.remove("fullscreen-floating-panel", "fullscreen-panel-left");
+        staticPanelPlaceholder.parentNode.insertBefore(staticPanel, staticPanelPlaceholder);
+        staticPanelPlaceholder.remove();
+      }
+      if (motionSidebar && motionPanelPlaceholder.parentNode) {
+        motionSidebar.classList.remove("fullscreen-floating-panel", "fullscreen-panel-right");
+        motionPanelPlaceholder.parentNode.insertBefore(motionSidebar, motionPanelPlaceholder);
+        motionPanelPlaceholder.remove();
+      }
+      fullscreenStage.classList.remove("panels-hidden");
+      if (controls.stageTogglePanels) controls.stageTogglePanels.textContent = "隐藏面板";
+      window.setTimeout(positionMotionSettings, 0);
+    }
+
+    function toggleFullscreenPanels() {
+      const hidden = !fullscreenStage.classList.contains("panels-hidden");
+      fullscreenStage.classList.toggle("panels-hidden", hidden);
+      if (controls.stageTogglePanels) controls.stageTogglePanels.textContent = hidden ? "显示面板" : "隐藏面板";
+    }
+
     function resetFullscreenRecordingUi() {
       fullscreenRecording = false;
       if (controls.stageRecordToggle) {
@@ -5527,6 +5620,7 @@
       outputScale = fullscreenStageScale();
       fullscreenStage.classList.add("is-open");
       fullscreenStage.setAttribute("aria-hidden", "false");
+      movePanelsToFullscreenStage();
       if (controls.startFullscreenRecord) controls.startFullscreenRecord.disabled = true;
       if (controls.stopFullscreenRecord) controls.stopFullscreenRecord.disabled = false;
       if (controls.fullscreenToolbar) controls.fullscreenToolbar.classList.remove("is-hidden");
@@ -5546,6 +5640,7 @@
       fullscreenStageOpen = false;
       fullscreenStage.classList.remove("is-open");
       fullscreenStage.setAttribute("aria-hidden", "true");
+      restorePanelsFromFullscreenStage();
       if (document.fullscreenElement === fullscreenStage) {
         document.exitFullscreen().catch(() => {});
       }
@@ -6355,7 +6450,7 @@
     }
 
     function shouldRenderGuides() {
-      return renderGuides && !manualRecording && !exportingWebm;
+      return renderGuides && !manualRecording && !exportingWebm && !controls.hideGuideAxis?.checked;
     }
 
     function drawWrappedVerticalText(char, x, rawY, size, angle, alpha, blur, minY, maxY) {
@@ -7629,6 +7724,7 @@
       controls.startFullscreenRecord?.addEventListener("click", openFullscreenStage);
       controls.stopFullscreenRecord?.addEventListener("click", closeFullscreenStage);
       controls.stageRecordToggle?.addEventListener("click", toggleFullscreenRecording);
+      controls.stageTogglePanels?.addEventListener("click", toggleFullscreenPanels);
       controls.stageHideControls?.addEventListener("click", () => {
         controls.fullscreenToolbar?.classList.add("is-hidden");
         controls.stageShowControls?.classList.add("is-visible");
