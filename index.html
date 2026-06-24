@@ -239,6 +239,116 @@
       place-items: center;
     }
 
+    .onboarding {
+      position: fixed;
+      inset: 0;
+      z-index: 3600;
+      pointer-events: none;
+    }
+
+    .onboarding[hidden] {
+      display: none;
+    }
+
+    .onboarding-scrim {
+      position: absolute;
+      inset: 0;
+      background: rgba(8, 9, 14, 0.46);
+      backdrop-filter: blur(2px);
+      pointer-events: auto;
+    }
+
+    .onboarding-highlight {
+      position: fixed;
+      z-index: 1;
+      border-radius: 16px;
+      box-shadow:
+        0 0 0 2px rgba(105, 80, 255, 0.95),
+        0 0 0 9999px rgba(8, 9, 14, 0.42),
+        0 18px 50px rgba(105, 80, 255, 0.24);
+      transition-property: left, top, width, height, border-radius;
+      transition-duration: 180ms;
+      transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+      pointer-events: none;
+    }
+
+    .onboarding-card {
+      position: fixed;
+      z-index: 2;
+      width: min(360px, calc(100vw - 32px));
+      padding: 16px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.96);
+      color: #15151d;
+      box-shadow:
+        0 24px 70px rgba(16, 18, 28, 0.24),
+        0 1px 0 rgba(255, 255, 255, 0.7) inset;
+      pointer-events: auto;
+      transition-property: left, top, transform, opacity;
+      transition-duration: 180ms;
+      transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+    }
+
+    .onboarding-card h2 {
+      margin: 0 0 8px;
+      font-size: 16px;
+      line-height: 1.25;
+      text-wrap: balance;
+    }
+
+    .onboarding-card p {
+      margin: 0;
+      color: #555666;
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.55;
+      text-wrap: pretty;
+    }
+
+    .onboarding-foot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .onboarding-count {
+      color: #777988;
+      font-size: 12px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .onboarding-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .onboarding-actions button {
+      min-width: 42px;
+      height: 34px;
+      border-radius: 999px;
+      border-color: #d7d9e7;
+      background: #fff;
+      color: #1f2030;
+      font-size: 12px;
+      font-weight: 900;
+      transition-property: transform, background, color, border-color;
+      transition-duration: 140ms;
+    }
+
+    .onboarding-actions button:active {
+      transform: scale(0.96);
+    }
+
+    #onboardingNext {
+      border-color: transparent;
+      background: #6b4eff;
+      color: #fff;
+      box-shadow: 0 10px 24px rgba(107, 78, 255, 0.24);
+    }
+
     .panel-header {
       position: sticky;
       top: 0;
@@ -3550,6 +3660,7 @@
           <button id="importPresetFile" type="button">导入文件</button>
           <input id="presetFileInput" type="file" accept="application/json,.json" hidden />
           <button id="checkUpdates" type="button">检查更新</button>
+          <button id="openOnboarding" type="button">教程</button>
           <button id="previewMotion" type="button">预览</button>
           <button id="randomize">随机</button>
           <button id="download">下载 PNG</button>
@@ -3679,6 +3790,23 @@
     <button class="fullscreen-toolbar-handle" id="stageShowControls" type="button" aria-label="显示录制控件">●</button>
   </div>
 
+  <div class="onboarding" id="onboarding" hidden>
+    <div class="onboarding-scrim" id="onboardingScrim"></div>
+    <div class="onboarding-highlight" id="onboardingHighlight"></div>
+    <section class="onboarding-card" id="onboardingCard" aria-live="polite">
+      <h2 id="onboardingTitle">快速开始</h2>
+      <p id="onboardingText">跟随几步了解文字排版生成器的主要区域。</p>
+      <div class="onboarding-foot">
+        <span class="onboarding-count" id="onboardingCount">1 / 6</span>
+        <div class="onboarding-actions">
+          <button id="onboardingSkip" type="button">跳过</button>
+          <button id="onboardingPrev" type="button">上一步</button>
+          <button id="onboardingNext" type="button">下一步</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
   <script>
     const canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
@@ -3696,6 +3824,7 @@
       "rainColumnMotionToggle", "rainColumnMotion", "barrageRowMotionToggle", "barrageRowMotion", "motionScrub",
       "videoFormat", "videoQuality", "videoAlpha", "audioInput", "audioPlay", "audioPause", "audioRestart", "audioScrub", "timecodeInput", "startManualRecord", "stopManualRecord", "startFullscreenRecord", "stopFullscreenRecord",
       "undoAction", "redoAction", "canvasZoom", "presetSelect", "savePreset", "loadPreset", "deletePreset", "importPresetFile", "presetFileInput", "checkUpdates",
+      "openOnboarding", "onboarding", "onboardingScrim", "onboardingHighlight", "onboardingCard", "onboardingTitle", "onboardingText", "onboardingCount", "onboardingSkip", "onboardingPrev", "onboardingNext",
       "fullscreenStage", "fullscreenCanvas", "fullscreenToolbar", "stageRecordToggle", "stageHideControls", "stageShowControls", "stageExit"
     ];
 
@@ -3824,6 +3953,7 @@
         ["#stageRecordToggle", "录制"],
         ["#stageHideControls", "隐藏"],
         ["#stageExit", "退出"],
+        ["#openOnboarding", "教程"],
         [".recording-note", "导出视频会按当前画布逐帧播放并录制为所选格式；录制期间请保持页面打开。"],
         [".export-preview-title span", "PNG 已生成，右键或长按图片可保存"],
         [".export-preview-hint", "移动端长按预览图可保存；如果浏览器拦截，使用下方保存按钮。"],
@@ -4026,7 +4156,8 @@
     const savedStateExcludedIds = new Set([
       "imageInput", "localFontInput", "audioInput", "audioPlay", "audioPause", "audioRestart", "audioScrub",
       "startManualRecord", "stopManualRecord", "startFullscreenRecord", "stopFullscreenRecord", "fullscreenStage", "fullscreenCanvas", "fullscreenToolbar", "stageRecordToggle", "stageHideControls", "stageShowControls", "stageExit", "motionScrub", "undoAction", "redoAction", "canvasZoom",
-      "presetSelect", "savePreset", "loadPreset", "deletePreset", "importPresetFile", "presetFileInput", "checkUpdates"
+      "presetSelect", "savePreset", "loadPreset", "deletePreset", "importPresetFile", "presetFileInput", "checkUpdates",
+      "openOnboarding", "onboarding", "onboardingScrim", "onboardingHighlight", "onboardingCard", "onboardingTitle", "onboardingText", "onboardingCount", "onboardingSkip", "onboardingPrev", "onboardingNext"
     ]);
     const savedRadioGroups = ["axis", "fillDirection", "floatDirection", "imageAlign", "motionEffect", "motionDirection", "rainColumnDirection", "barrageRowDirection", "rotateDirection"];
     const presetStorageKey = "text-layout-generator-presets";
@@ -4246,6 +4377,130 @@
         toast.classList.remove("is-visible");
         if (status && status.textContent === message) status.textContent = "";
       }, duration);
+    }
+
+    const onboardingKey = "textLayoutGeneratorOnboardingSeen:v1";
+    let onboardingIndex = 0;
+    const onboardingSteps = [
+      {
+        target: "#textInput",
+        title: "先输入文字",
+        text: "这里决定生成内容。支持中文、英文、换行和空格；需要严格字数或顺序时，勾选下方对应选项。"
+      },
+      {
+        target: "#mode",
+        title: "选择排版模式",
+        text: "不同模式会显示不同参数。比如中轴漂浮、雨落、弹幕、图片轮廓字和图片填充字。"
+      },
+      {
+        target: "#canvas",
+        title: "中央是预览画布",
+        text: "所有静态参数和动效都会实时更新到这里。画布尺寸可以在顶部输入宽高。"
+      },
+      {
+        target: ".motion-sidebar",
+        title: "右侧调整动态",
+        text: "按进场、循环、退场选择动效。点击动效卡片会确定效果，悬停可以临时预览。"
+      },
+      {
+        target: ".timeline-console",
+        title: "底部控制播放和导出",
+        text: "这里可以播放、暂停、导出 WebM，调整时长、进退场时间、帧率，也可以导入音乐辅助节奏。"
+      },
+      {
+        target: "#startFullscreenRecord",
+        title: "画布全屏录制",
+        text: "点击后进入只显示画布的全屏舞台。右下角可隐藏控件并录制，录制内容只包含画布。"
+      }
+    ];
+
+    function onboardingSeen() {
+      try {
+        return localStorage.getItem(onboardingKey) === "1";
+      } catch {
+        return false;
+      }
+    }
+
+    function setOnboardingSeen() {
+      try {
+        localStorage.setItem(onboardingKey, "1");
+      } catch {}
+    }
+
+    function positionOnboarding() {
+      if (!controls.onboarding || controls.onboarding.hidden) return;
+      const step = onboardingSteps[onboardingIndex];
+      const target = document.querySelector(step.target);
+      const card = controls.onboardingCard;
+      const highlight = controls.onboardingHighlight;
+      if (!target || !card || !highlight) return;
+      const rect = target.getBoundingClientRect();
+      const pad = 8;
+      const left = clamp(rect.left - pad, 10, window.innerWidth - 32);
+      const top = clamp(rect.top - pad, 10, window.innerHeight - 32);
+      const width = clamp(rect.width + pad * 2, 40, window.innerWidth - left - 10);
+      const height = clamp(rect.height + pad * 2, 40, window.innerHeight - top - 10);
+      highlight.style.left = `${left}px`;
+      highlight.style.top = `${top}px`;
+      highlight.style.width = `${width}px`;
+      highlight.style.height = `${height}px`;
+
+      const cardWidth = card.offsetWidth || 360;
+      const cardHeight = card.offsetHeight || 180;
+      let cardLeft = left + width + 14;
+      if (cardLeft + cardWidth > window.innerWidth - 16) cardLeft = left - cardWidth - 14;
+      if (cardLeft < 16) cardLeft = clamp(left + width / 2 - cardWidth / 2, 16, window.innerWidth - cardWidth - 16);
+      let cardTop = clamp(top, 16, window.innerHeight - cardHeight - 16);
+      if (window.innerWidth < 720) {
+        cardLeft = clamp((window.innerWidth - cardWidth) / 2, 16, window.innerWidth - cardWidth - 16);
+        cardTop = top + height + 12;
+        if (cardTop + cardHeight > window.innerHeight - 16) cardTop = top - cardHeight - 12;
+        cardTop = clamp(cardTop, 16, window.innerHeight - cardHeight - 16);
+      }
+      card.style.left = `${cardLeft}px`;
+      card.style.top = `${cardTop}px`;
+    }
+
+    function renderOnboardingStep() {
+      const step = onboardingSteps[onboardingIndex];
+      const target = document.querySelector(step.target);
+      if (target) target.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
+      controls.onboardingTitle.textContent = step.title;
+      controls.onboardingText.textContent = step.text;
+      controls.onboardingCount.textContent = `${onboardingIndex + 1} / ${onboardingSteps.length}`;
+      controls.onboardingPrev.disabled = onboardingIndex === 0;
+      controls.onboardingNext.textContent = onboardingIndex === onboardingSteps.length - 1 ? "完成" : "下一步";
+      window.setTimeout(positionOnboarding, 180);
+    }
+
+    function startOnboarding(force = false) {
+      if (!force && onboardingSeen()) return;
+      if (!controls.onboarding) return;
+      if (fullscreenStageOpen) closeFullscreenStage();
+      onboardingIndex = 0;
+      controls.onboarding.hidden = false;
+      renderOnboardingStep();
+    }
+
+    function closeOnboarding(markSeen = true) {
+      if (controls.onboarding) controls.onboarding.hidden = true;
+      if (markSeen) setOnboardingSeen();
+    }
+
+    function nextOnboardingStep() {
+      if (onboardingIndex >= onboardingSteps.length - 1) {
+        closeOnboarding(true);
+        showStatus("教程已完成，可从顶部“教程”再次打开");
+        return;
+      }
+      onboardingIndex += 1;
+      renderOnboardingStep();
+    }
+
+    function prevOnboardingStep() {
+      onboardingIndex = Math.max(0, onboardingIndex - 1);
+      renderOnboardingStep();
     }
 
     async function saveCurrentPreset() {
@@ -7386,6 +7641,13 @@
       document.addEventListener("fullscreenchange", () => {
         if (fullscreenStageOpen && !document.fullscreenElement) closeFullscreenStage();
       });
+      controls.openOnboarding?.addEventListener("click", () => startOnboarding(true));
+      controls.onboardingNext?.addEventListener("click", nextOnboardingStep);
+      controls.onboardingPrev?.addEventListener("click", prevOnboardingStep);
+      controls.onboardingSkip?.addEventListener("click", () => closeOnboarding(true));
+      controls.onboardingScrim?.addEventListener("click", () => closeOnboarding(true));
+      window.addEventListener("resize", positionOnboarding);
+      window.addEventListener("scroll", positionOnboarding, true);
       controls.audioPlay.addEventListener("click", () => {
         playRecordingAudio(false);
       });
@@ -7574,6 +7836,7 @@
     syncMotionSettingsUI();
     draw();
     pushHistorySnapshot();
+    window.setTimeout(() => startOnboarding(false), 700);
   </script>
 </body>
 </html>
