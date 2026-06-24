@@ -4224,6 +4224,32 @@
 
     async function loadBuiltinPresets() {
       if (!window.textLayoutDesktop?.loadBuiltinPresets) {
+        try {
+          const fetchJson = async (url) => {
+            const response = await fetch(url, { cache: "no-cache" });
+            if (!response.ok) throw new Error(`${url} ${response.status}`);
+            return JSON.parse((await response.text()).replace(/^\uFEFF/, ""));
+          };
+          const manifest = await fetchJson("presets/manifest.json");
+          const presets = [];
+          for (const item of manifest) {
+            const file = String(item.file || "");
+            if (!file || /[\\/]/.test(file)) continue;
+            const payload = await fetchJson(`presets/${encodeURIComponent(file)}`);
+            const preset = payload?.preset || payload;
+            if (!preset?.state) continue;
+            presets.push({
+              id: String(item.id || `builtin-${file}`),
+              name: String(item.name || preset.name || file.replace(/\.json$/i, "")),
+              createdAt: preset.createdAt || "",
+              state: preset.state,
+              builtin: true
+            });
+          }
+          builtinPresets = presets;
+        } catch (error) {
+          console.warn("Builtin presets failed to load in web mode", error);
+        }
         renderPresetOptions();
         return;
       }
@@ -7240,6 +7266,7 @@
     placeMotionPanel();
     wireEvents();
     renderPresetOptions();
+    loadBuiltinPresets();
     syncVideoAlphaUI(false);
     syncMotionSettingsUI();
     draw();

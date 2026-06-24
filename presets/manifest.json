@@ -1,0 +1,37 @@
+﻿[
+    {
+        "id":  "builtin-单字下落",
+        "name":  "单字下落",
+        "file":  "单字下落.json"
+    },
+    {
+        "id":  "builtin-二进制数字乱码",
+        "name":  "二进制数字乱码",
+        "file":  "二进制数字乱码.json"
+    },
+    {
+        "id":  "builtin-轮廓字走马灯",
+        "name":  "轮廓字走马灯",
+        "file":  "轮廓字走马灯.json"
+    },
+    {
+        "id":  "builtin-收缩弹跳",
+        "name":  "收缩弹跳",
+        "file":  "收缩弹跳.json"
+    },
+    {
+        "id":  "builtin-下落呼吸进场淡化退场",
+        "name":  "下落呼吸进场淡化退场",
+        "file":  "下落呼吸进场淡化退场.json"
+    },
+    {
+        "id":  "builtin-下落模糊",
+        "name":  "下落模糊",
+        "file":  "下落模糊.json"
+    },
+    {
+        "id":  "builtin-下落循环",
+        "name":  "下落循环",
+        "file":  "下落循环.json"
+    }
+]
