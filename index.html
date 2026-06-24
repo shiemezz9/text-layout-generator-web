@@ -4907,6 +4907,10 @@
       return clamp(Number(controls.videoQuality?.value) || 2, 1, 2);
     }
 
+    function fullscreenStageScale() {
+      return 1;
+    }
+
     function recordingHasAlpha() {
       return isDesktopRuntime && Boolean(controls.videoAlpha?.checked);
     }
@@ -5265,7 +5269,7 @@
       if (fullscreenStageOpen) return;
       fullscreenStageOpen = true;
       fullscreenPreviousOutputScale = outputScale;
-      outputScale = selectedVideoScale();
+      outputScale = fullscreenStageScale();
       fullscreenStage.classList.add("is-open");
       fullscreenStage.setAttribute("aria-hidden", "false");
       if (controls.startFullscreenRecord) controls.startFullscreenRecord.disabled = true;
