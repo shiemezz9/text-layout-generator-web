@@ -149,6 +149,96 @@
       box-shadow: 0 10px 28px rgba(0, 0, 0, 0.32);
     }
 
+    .fullscreen-stage {
+      position: fixed;
+      inset: 0;
+      z-index: 3000;
+      display: none;
+      place-items: center;
+      overflow: hidden;
+      background: #000;
+    }
+
+    .fullscreen-stage.is-open {
+      display: grid;
+    }
+
+    .fullscreen-stage canvas {
+      width: 100vw;
+      height: 100vh;
+      max-width: none;
+      max-height: none;
+      border: 0;
+      border-radius: 0;
+      background: #000;
+      box-shadow: none;
+      object-fit: contain;
+    }
+
+    .fullscreen-toolbar {
+      position: absolute;
+      right: 18px;
+      bottom: 18px;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 999px;
+      background: rgba(16, 16, 18, 0.64);
+      box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+      backdrop-filter: blur(16px);
+      transition: opacity 160ms ease, transform 160ms ease;
+    }
+
+    .fullscreen-toolbar.is-hidden {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(8px);
+    }
+
+    .fullscreen-toolbar button {
+      min-width: 42px;
+      height: 34px;
+      border-color: rgba(255, 255, 255, 0.22);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.12);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 800;
+      box-shadow: none;
+    }
+
+    #stageRecordToggle.is-recording {
+      background: #ef4444;
+      border-color: #ef4444;
+      color: #fff;
+    }
+
+    .fullscreen-toolbar-handle {
+      position: absolute;
+      right: 18px;
+      bottom: 18px;
+      z-index: 3;
+      display: none;
+      width: 42px;
+      height: 42px;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      border-radius: 999px;
+      background: rgba(16, 16, 18, 0.72);
+      color: #fff;
+      font-size: 16px;
+      font-weight: 900;
+      box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+      backdrop-filter: blur(16px);
+    }
+
+    .fullscreen-toolbar-handle.is-visible {
+      display: grid;
+      place-items: center;
+    }
+
     .panel-header {
       position: sticky;
       top: 0;
@@ -3476,8 +3566,8 @@
           <button id="exportWebm" type="button">自动导出</button>
           <button id="startManualRecord" type="button">开始录制</button>
           <button id="stopManualRecord" type="button" disabled>结束录制</button>
-          <button id="startFullscreenRecord" type="button">全屏录制</button>
-          <button id="stopFullscreenRecord" type="button" disabled>结束全屏</button>
+          <button id="startFullscreenRecord" type="button">画布全屏</button>
+          <button id="stopFullscreenRecord" type="button" disabled>退出全屏</button>
           <p class="transport-note">自动导出会按时间轴播放录制；手动录制会录下实时画布。导出透明通道视频：勾选“Alpha 透明背景视频”，再点击“导出视频”；透明视频将使用 WebM 格式。</p>
           <section class="credits" aria-label="版权说明">
             <p><strong>制作者</strong> @shiemezz</p>
@@ -3579,9 +3669,22 @@
     </aside>
   </div>
 
+  <div class="fullscreen-stage" id="fullscreenStage" aria-hidden="true">
+    <canvas id="fullscreenCanvas" width="1200" height="900"></canvas>
+    <div class="fullscreen-toolbar" id="fullscreenToolbar">
+      <button id="stageRecordToggle" type="button">录制</button>
+      <button id="stageHideControls" type="button">隐藏</button>
+      <button id="stageExit" type="button">退出</button>
+    </div>
+    <button class="fullscreen-toolbar-handle" id="stageShowControls" type="button" aria-label="显示录制控件">●</button>
+  </div>
+
   <script>
     const canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
+    const fullscreenStage = document.getElementById("fullscreenStage");
+    const fullscreenCanvas = document.getElementById("fullscreenCanvas");
+    const fullscreenCtx = fullscreenCanvas.getContext("2d");
     const controls = {};
     const ids = [
       "textInput", "mode", "bgColor", "fontColor", "fontFamily", "localFontButton", "localFontInput", "count",
@@ -3592,7 +3695,8 @@
       "animateDuration", "enterDuration", "exitDuration", "animateFps", "animateSpeed", "motionDistance", "motionIntensity", "motionPhase", "fireworkCenterX", "fireworkCenterY", "motionStagger", "motionSequence", "motionCurve", "outsidePage", "motionGhost",
       "rainColumnMotionToggle", "rainColumnMotion", "barrageRowMotionToggle", "barrageRowMotion", "motionScrub",
       "videoFormat", "videoQuality", "videoAlpha", "audioInput", "audioPlay", "audioPause", "audioRestart", "audioScrub", "timecodeInput", "startManualRecord", "stopManualRecord", "startFullscreenRecord", "stopFullscreenRecord",
-      "undoAction", "redoAction", "canvasZoom", "presetSelect", "savePreset", "loadPreset", "deletePreset", "importPresetFile", "presetFileInput", "checkUpdates"
+      "undoAction", "redoAction", "canvasZoom", "presetSelect", "savePreset", "loadPreset", "deletePreset", "importPresetFile", "presetFileInput", "checkUpdates",
+      "fullscreenStage", "fullscreenCanvas", "fullscreenToolbar", "stageRecordToggle", "stageHideControls", "stageShowControls", "stageExit"
     ];
 
     ids.forEach((id) => {
@@ -3715,8 +3819,11 @@
         ["#pauseMotion", "暂停"],
         ["#resetMotion", "重置"],
         ["#exportWebm", "导出视频"],
-        ["#startFullscreenRecord", "全屏录制"],
-        ["#stopFullscreenRecord", "结束全屏"],
+        ["#startFullscreenRecord", "画布全屏"],
+        ["#stopFullscreenRecord", "退出全屏"],
+        ["#stageRecordToggle", "录制"],
+        ["#stageHideControls", "隐藏"],
+        ["#stageExit", "退出"],
         [".recording-note", "导出视频会按当前画布逐帧播放并录制为所选格式；录制期间请保持页面打开。"],
         [".export-preview-title span", "PNG 已生成，右键或长按图片可保存"],
         [".export-preview-hint", "移动端长按预览图可保存；如果浏览器拦截，使用下方保存按钮。"],
@@ -3770,7 +3877,7 @@
         const exportButton = document.getElementById("exportWebm");
         if (exportButton) exportButton.textContent = "导出 WebM";
         const note = document.querySelector(".transport-note");
-        if (note) note.textContent = "在线版支持 PNG、WebM、动画预览、预设导入导出；全屏录制会调用浏览器屏幕录制权限并导出 WebM。MP4 与透明通道视频请使用桌面版。";
+        if (note) note.textContent = "在线版支持 PNG、WebM、动画预览、预设导入导出；点击“画布全屏”可进入只显示画布的录制舞台，录制结果会导出 WebM。MP4 与透明通道视频请使用桌面版。";
         const title = document.querySelector(".save-state");
         if (title) title.textContent = "在线版";
       }
@@ -3838,6 +3945,8 @@
     let fullscreenStream = null;
     let fullscreenRecordChunks = [];
     let fullscreenRecordMimeType = "video/webm";
+    let fullscreenStageOpen = false;
+    let fullscreenPreviousOutputScale = 1;
     let uploadedAudioUrl = "";
     let uploadedAudioName = "";
     let historyStack = [];
@@ -3916,7 +4025,7 @@
 
     const savedStateExcludedIds = new Set([
       "imageInput", "localFontInput", "audioInput", "audioPlay", "audioPause", "audioRestart", "audioScrub",
-      "startManualRecord", "stopManualRecord", "startFullscreenRecord", "stopFullscreenRecord", "motionScrub", "undoAction", "redoAction", "canvasZoom",
+      "startManualRecord", "stopManualRecord", "startFullscreenRecord", "stopFullscreenRecord", "fullscreenStage", "fullscreenCanvas", "fullscreenToolbar", "stageRecordToggle", "stageHideControls", "stageShowControls", "stageExit", "motionScrub", "undoAction", "redoAction", "canvasZoom",
       "presetSelect", "savePreset", "loadPreset", "deletePreset", "importPresetFile", "presetFileInput", "checkUpdates"
     ]);
     const savedRadioGroups = ["axis", "fillDirection", "floatDirection", "imageAlign", "motionEffect", "motionDirection", "rainColumnDirection", "barrageRowDirection", "rotateDirection"];
@@ -5122,33 +5231,95 @@
       else document.body.classList.remove("is-recording");
     }
 
+    function syncFullscreenCanvas() {
+      if (!fullscreenStageOpen && !fullscreenRecording) return;
+      if (fullscreenCanvas.width !== canvas.width || fullscreenCanvas.height !== canvas.height) {
+        fullscreenCanvas.width = canvas.width;
+        fullscreenCanvas.height = canvas.height;
+      }
+      fullscreenCanvas.style.setProperty("--canvas-aspect", `${canvas.width} / ${canvas.height}`);
+      fullscreenCtx.clearRect(0, 0, fullscreenCanvas.width, fullscreenCanvas.height);
+      fullscreenCtx.drawImage(canvas, 0, 0);
+    }
+
+    function fullscreenCanvasRecordingStream(fps) {
+      if (!fullscreenCanvas.captureStream) return null;
+      const stream = fullscreenCanvas.captureStream(fps);
+      if (uploadedAudioUrl && typeof audioPlayer.captureStream === "function") {
+        const audioStream = audioPlayer.captureStream();
+        audioStream.getAudioTracks().forEach((track) => stream.addTrack(track));
+      }
+      return stream;
+    }
+
     function resetFullscreenRecordingUi() {
       fullscreenRecording = false;
-      document.body.classList.remove("is-fullscreen-recording");
+      if (controls.stageRecordToggle) {
+        controls.stageRecordToggle.textContent = "录制";
+        controls.stageRecordToggle.classList.remove("is-recording");
+        controls.stageRecordToggle.disabled = false;
+      }
+    }
+
+    async function openFullscreenStage() {
+      if (fullscreenStageOpen) return;
+      fullscreenStageOpen = true;
+      fullscreenPreviousOutputScale = outputScale;
+      outputScale = selectedVideoScale();
+      fullscreenStage.classList.add("is-open");
+      fullscreenStage.setAttribute("aria-hidden", "false");
+      if (controls.startFullscreenRecord) controls.startFullscreenRecord.disabled = true;
+      if (controls.stopFullscreenRecord) controls.stopFullscreenRecord.disabled = false;
+      if (controls.fullscreenToolbar) controls.fullscreenToolbar.classList.remove("is-hidden");
+      if (controls.stageShowControls) controls.stageShowControls.classList.remove("is-visible");
+      render(false, false);
+      syncFullscreenCanvas();
+      resetAnimation();
+      playAnimation();
+      if (fullscreenStage.requestFullscreen && !document.fullscreenElement) {
+        await fullscreenStage.requestFullscreen().catch(() => {});
+      }
+      showStatus("已进入画布全屏舞台，可点击右下角录制");
+    }
+
+    function closeFullscreenStage() {
+      if (fullscreenRecording) stopFullscreenRecording();
+      fullscreenStageOpen = false;
+      fullscreenStage.classList.remove("is-open");
+      fullscreenStage.setAttribute("aria-hidden", "true");
+      if (document.fullscreenElement === fullscreenStage) {
+        document.exitFullscreen().catch(() => {});
+      }
+      outputScale = fullscreenPreviousOutputScale || 1;
       if (controls.startFullscreenRecord) controls.startFullscreenRecord.disabled = false;
       if (controls.stopFullscreenRecord) controls.stopFullscreenRecord.disabled = true;
+      if (controls.fullscreenToolbar) controls.fullscreenToolbar.classList.remove("is-hidden");
+      if (controls.stageShowControls) controls.stageShowControls.classList.remove("is-visible");
+      draw();
+      showStatus("已退出画布全屏");
     }
 
     async function startFullscreenRecording() {
-      if (fullscreenRecording) return;
+      if (!fullscreenStageOpen) {
+        await openFullscreenStage();
+        return;
+      }
       const status = document.getElementById("downloadStatus");
-      const canRecord = navigator.mediaDevices?.getDisplayMedia && typeof MediaRecorder !== "undefined";
+      const canRecord = typeof MediaRecorder !== "undefined" && fullscreenCanvas.captureStream;
       if (!canRecord) {
-        showStatus("当前浏览器不支持全屏录制");
+        showStatus("当前浏览器不支持画布录制");
         return;
       }
       try {
-        showStatus("请选择当前标签页、窗口或屏幕进行录制", 3600);
-        if (document.fullscreenEnabled && !document.fullscreenElement) {
-          await document.documentElement.requestFullscreen().catch(() => {});
-        }
         const fps = Math.max(12, num("animateFps"));
-        fullscreenStream = await navigator.mediaDevices.getDisplayMedia({
-          video: {
-            frameRate: { ideal: fps, max: fps }
-          },
-          audio: true
-        });
+        resetAnimation();
+        playAnimation();
+        await playRecordingAudio(false);
+        fullscreenStream = fullscreenCanvasRecordingStream(fps);
+        if (!fullscreenStream) {
+          showStatus("当前浏览器无法读取全屏画布");
+          return;
+        }
         fullscreenRecordChunks = [];
         fullscreenRecordMimeType = supportedVideoMimeType("webm") || "video/webm";
         fullscreenRecorder = new MediaRecorder(fullscreenStream, recordingOptions(fullscreenRecordMimeType, fps));
@@ -5158,6 +5329,7 @@
         fullscreenRecorder.onstop = () => {
           fullscreenStream?.getTracks().forEach((track) => track.stop());
           fullscreenStream = null;
+          stopRecordingAudio();
           resetFullscreenRecordingUi();
           if (!fullscreenRecordChunks.length) {
             if (status) status.textContent = "全屏录制失败";
@@ -5170,23 +5342,20 @@
             if (status && status.textContent.includes("全屏录制已导出")) status.textContent = "";
           }, 2400);
         };
-        fullscreenStream.getVideoTracks().forEach((track) => {
-          track.addEventListener("ended", stopFullscreenRecording, { once: true });
-        });
         fullscreenRecording = true;
-        document.body.classList.add("is-fullscreen-recording");
-        if (controls.startFullscreenRecord) controls.startFullscreenRecord.disabled = true;
-        if (controls.stopFullscreenRecord) controls.stopFullscreenRecord.disabled = false;
-        resetAnimation();
-        playAnimation();
+        if (controls.stageRecordToggle) {
+          controls.stageRecordToggle.textContent = "停止";
+          controls.stageRecordToggle.classList.add("is-recording");
+        }
         fullscreenRecorder.start();
-        showStatus("正在全屏录制；点击“结束全屏”后下载 WebM", 3600);
+        showStatus("正在录制全屏画布；再次点击录制按钮后下载 WebM", 3600);
       } catch (error) {
         console.error(error);
         fullscreenStream?.getTracks().forEach((track) => track.stop());
         fullscreenStream = null;
+        stopRecordingAudio();
         resetFullscreenRecordingUi();
-        showStatus("已取消或无法启动全屏录制");
+        showStatus("无法启动画布录制");
       }
     }
 
@@ -5199,6 +5368,11 @@
         fullscreenStream = null;
         resetFullscreenRecordingUi();
       }
+    }
+
+    function toggleFullscreenRecording() {
+      if (fullscreenRecording) stopFullscreenRecording();
+      else startFullscreenRecording();
     }
 
     function selectedMotionEffects() {
@@ -6937,6 +7111,7 @@
       if (mode === "image") drawImageMode(rng, chars);
       if (mode === "imageFill") drawImageFillMode(chars);
       applyGlitchEffect(rng);
+      syncFullscreenCanvas();
     }
 
     function draw() {
@@ -7192,8 +7367,21 @@
       document.getElementById("resetMotion").addEventListener("click", resetAnimation);
       controls.startManualRecord.addEventListener("click", startManualRecording);
       controls.stopManualRecord.addEventListener("click", stopManualRecording);
-      controls.startFullscreenRecord?.addEventListener("click", startFullscreenRecording);
-      controls.stopFullscreenRecord?.addEventListener("click", stopFullscreenRecording);
+      controls.startFullscreenRecord?.addEventListener("click", openFullscreenStage);
+      controls.stopFullscreenRecord?.addEventListener("click", closeFullscreenStage);
+      controls.stageRecordToggle?.addEventListener("click", toggleFullscreenRecording);
+      controls.stageHideControls?.addEventListener("click", () => {
+        controls.fullscreenToolbar?.classList.add("is-hidden");
+        controls.stageShowControls?.classList.add("is-visible");
+      });
+      controls.stageShowControls?.addEventListener("click", () => {
+        controls.fullscreenToolbar?.classList.remove("is-hidden");
+        controls.stageShowControls?.classList.remove("is-visible");
+      });
+      controls.stageExit?.addEventListener("click", closeFullscreenStage);
+      document.addEventListener("fullscreenchange", () => {
+        if (fullscreenStageOpen && !document.fullscreenElement) closeFullscreenStage();
+      });
       controls.audioPlay.addEventListener("click", () => {
         playRecordingAudio(false);
       });
